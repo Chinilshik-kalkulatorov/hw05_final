@@ -5,5 +5,5 @@ register = template.Library()
 
 @register.filter
 def addclass(field, css):
-    """Фильтр шаблона форм, добавляющий атрибут form class для полей"""
+    """Connects css."""
     return field.as_widget(attrs={'class': css})

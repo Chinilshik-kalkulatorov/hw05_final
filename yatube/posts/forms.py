@@ -1,20 +1,15 @@
-from django import forms
+from django.forms import ModelForm
 
-from .models import Post
+from .models import Comment, Post
 
 
-class PostForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super(PostForm, self).__init__(*args, **kwargs)
-        self.fields['text'].required = True
-
+class PostForm(ModelForm):
     class Meta:
         model = Post
-        fields = ('text', 'group')
-        labels = {
-            'text': ('Текст поста'),
-            'group': ('Группа'),
-        }
-        help_texts = {
-            'group': ("Группа, к которой будет относиться пост"),
-        }
+        fields = ('text', 'group', 'image')
+
+
+class CommentForm(ModelForm):
+    class Meta:
+        model = Comment
+        fields = ('text',)

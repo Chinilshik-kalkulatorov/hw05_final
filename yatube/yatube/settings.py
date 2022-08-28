@@ -1,16 +1,9 @@
-import os
+from os import path
 
-# Build paths inside the project like this: os.path.join(BASE_DIR, ...)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = path.dirname(path.dirname(path.abspath(__file__)))
 
+SECRET_KEY = 'django-insecure-(-k7$4o=v4cf76n(bvl=&of_of(ovjf)uu3jobd1k97f@w_5dw'
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '=9!*i5k8alxx24(c#g3rq9ef1ehe%yho=dlonxht&c3y25$9^^'
-
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = [
@@ -19,7 +12,6 @@ ALLOWED_HOSTS = [
     '[::1]',
     'testserver',
 ]
-
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -32,8 +24,7 @@ INSTALLED_APPS = [
     'users.apps.UsersConfig',
     'core.apps.CoreConfig',
     'about.apps.AboutConfig',
-    'debug_toolbar',
-
+    'sorl.thumbnail',
 ]
 
 MIDDLEWARE = [
@@ -44,12 +35,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
 
 ROOT_URLCONF = 'yatube.urls'
-
-TEMPLATES_DIR = os.path.join(BASE_DIR, 'templates')
+TEMPLATES_DIR = path.join(BASE_DIR, 'templates')
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -62,7 +51,6 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.year.year',
-
             ],
         },
     },
@@ -70,14 +58,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'yatube.wsgi.application'
 
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'NAME': path.join(BASE_DIR, 'db.sqlite3'),
     }
 }
-
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -95,7 +81,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ru'
 
 TIME_ZONE = 'UTC'
 
@@ -105,25 +91,26 @@ USE_L10N = True
 
 USE_TZ = True
 
-
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
-
+STATICFILES_DIRS = [path.join(BASE_DIR, 'static')]
 STATIC_URL = '/static/'
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = path.join(BASE_DIR, 'media')
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    }
+}
+
+EMPTY_VALUE_DISPLAY = '-пусто-'
+PAGINATOR_COUNT = 10
+
+
 LOGIN_URL = 'users:login'
-LOGIN_REDIRECT_URL = 'posts:home'
-# LOGOUT_REDIRECT_URL = 'posts:home'
+LOGIN_REDIRECT_URL = 'posts:index'
 
 EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
-EMAIL_FILE_PATH = os.path.join(BASE_DIR, 'sent_emails')
-
-INTERNAL_IPS = ['127.0.0.1']
-
-
-def show_toolbar(request):
-    return True
-
-
-DEBUG_TOOLBAR_CONFIG = {"SHOW_TOOLBAR_CALLBACK": show_toolbar}
-
-PER_PAGE_COUNT = 10
+EMAIL_FILE_PATH = path.join(BASE_DIR, 'sent_emails')

@@ -1,61 +1,103 @@
 from django.contrib.auth import get_user_model
 from django.db import models
-from django.urls import reverse
 
 User = get_user_model()
 
 
+class Group(models.Model):
+    """Community model."""
+    title = models.CharField('title', max_length=200)
+    slug = models.SlugField('group name', unique=True)
+    description = models.TextField('description')
+
+    class Meta:
+        verbose_name = 'community'
+        db_table = 'community of Tolstoy lovers'
+
+    def __str__(self):
+        return self.title
+
+
 class Post(models.Model):
-    text = models.TextField(
-        'Текст поста',
-        help_text='Введите текст поста',
+    """Model for records, field group is linked by model
+    Group and author is linked by User."""
+    text = models.TextField('article', help_text='Введите текст поста')
+    pub_date = models.DateTimeField('year of writing', auto_now_add=True)
+    group = models.ForeignKey(
+        Group,
+        on_delete=models.SET_NULL,
+        verbose_name='group name',
+        related_name='community',
+        help_text='Выберите группу',
         blank=True,
-        null=False,
-    )
-    pub_date = models.DateTimeField(
-        'Дата публикации',
-        auto_now_add=True,
-    )
+        null=True)
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        verbose_name='Автор',
-        related_name='posts',
-    )
-    group = models.ForeignKey(
-        'Group',
-        on_delete=models.SET_NULL,
+        verbose_name='author',
+        related_name='author_posts')
+    image = models.ImageField(
+        'beautiful image',
+        upload_to='posts/',
         blank=True,
-        null=True,
-        related_name='posts',
-        verbose_name='Группа',
-        help_text='Группа, к которой будет относиться пост',
+        help_text='Загрузить картинку'
     )
+
+    class Meta:
+        ordering = ('-pub_date',)
+        verbose_name = 'notes of famous people'
+        db_table = 'all post'
 
     def __str__(self):
         return self.text[:15]
 
-    def save(self, *args, **kwargs):
-        if not self.text:
-            self.text = None
-        super(Post, self).save(*args, **kwargs)
+
+class Comment(models.Model):
+    """Add commets to post."""
+    post = models.ForeignKey(
+        Post,
+        on_delete=models.CASCADE,
+        verbose_name='post name',
+        related_name='comments'
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='author name',
+        related_name='author_comments')
+    text = models.TextField('coment', help_text='Введите текст коментария')
+    created = models.DateTimeField('time of writing', auto_now_add=True)
 
     class Meta:
-        ordering = ('-pub_date',)
-
-    def get_absolute_url(self):
-        return reverse('posts:profile', kwargs={'username': self.author})
-
-
-class Group(models.Model):
-    title = models.CharField(verbose_name="Заголовок", max_length=200)
-    slug = models.SlugField(verbose_name="слаг", unique=True)
-    description = models.TextField(
-        verbose_name="дефиниция", blank=True, null=True)
-
-    class Meta:
-        verbose_name = "Новость сообщества"
-        verbose_name_plural = "Новости сообщества"
+        verbose_name = 'comments'
+        db_table = 'users comments'
 
     def __str__(self):
-        return self.title
+        return self.text[:15]
+
+
+class Follow(models.Model):
+    """Subscribe to the author."""
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='name',
+        related_name='follower')
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='post author',
+        related_name='following')
+
+    class Meta:
+        verbose_name = 'subscriptions'
+        db_table = 'author subscriptions'
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'author'],
+                                    name='unique_subscription'),
+            models.CheckConstraint(check=~models.Q(author=models.F('user')),
+                                   name='not_subscription_by_myself'),
+        ]
+
+    def __str__(self):
+        return f'{self.user} subscribed to {self.author}'

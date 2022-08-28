@@ -1,54 +1,80 @@
 from http import HTTPStatus
 
-from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import Client, TestCase
 
-from .fixtures.fixture_data import Settings
-
-User = get_user_model()
+from ..models import Group, Post, User
 
 
-class StaticURLTests(TestCase):
-
-    def test_homepage(self):
-        # Создаем экземпляр клиента
-        # Делаем запрос к глв стр
-        response = self.client.get('/')
-        # Утверждаем, что код должен быть равен 200
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-
-
-class PostURLTests(Settings):
+class PostsURLTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user_alex = User.objects.create_user(username='user_alex')
+        cls.user = User.objects.create_user(username='userman')
+        cls.group = Group.objects.create(
+            title='Тестовая группа',
+            slug='something_slug',
+            description='Тестовое описание',
+        )
+        cls.post = Post.objects.create(
+            author=cls.user,
+            text='Тестовая группа',
+        )
 
     def setUp(self):
-        self.POSTS_URLS = {
+        self.guest_client = Client()
+        self.authorized_client = Client()
+        self.authorized_client.force_login(self.__class__.user)
+
+    def test_page_not_exist(self):
+        """This page does not exist."""
+        response = self.guest_client.get('/strange_page/')
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND.value)
+
+    def test_url_correct_template_status_code_unauthorized(self):
+        """Checking status_code and URL-the address
+        uses the appropriate template."""
+        templates_url_names = {
+            '/': 'posts/index.html',
             f'/group/{self.group.slug}/': 'posts/group_list.html',
             f'/profile/{self.user}/': 'posts/profile.html',
-            f'/posts/{self.post.id}/': 'posts/post_detail.html',
-            '/': 'posts/index.html',
+            f'/posts/{self.post.pk}/': 'posts/post_detail.html',
         }
-        self.POSTS_URLS_LOGIN_REQUIRED = {
+        for url, template in templates_url_names.items():
+            with self.subTest(url=url):
+                response = self.guest_client.get(url)
+                self.assertEqual(response.status_code, HTTPStatus.OK.value)
+                self.assertTemplateUsed(response, template)
+
+    def test_url_correct_template_status_code_authorized(self):
+        """Checking status_code and URL-the address
+        uses the appropriate template."""
+        templates_url_names = {
+            f'/posts/{self.post.pk}/edit/': 'posts/create_post.html',
             '/create/': 'posts/create_post.html',
-            f'/posts/{self.post.id}/edit/': 'posts/create_post.html',
         }
-
-    def test_post_urls_exists_at_desired_location(self):
-        """Проверяем урлы приложения Post на доступность и соответствие
-        шаблонам"""
-
-        for url, template in self.POSTS_URLS.items():
-            response = self.guest_client.get(url)
+        for url, template in templates_url_names.items():
             with self.subTest(url=url):
-                self.assertEqual(response.status_code, HTTPStatus.OK)
+                response = self.authorized_client.get(url)
+                self.assertEqual(response.status_code, HTTPStatus.OK.value)
                 self.assertTemplateUsed(response, template)
 
-        for url, template in self.POSTS_URLS_LOGIN_REQUIRED.items():
-            response = self.authorized_client.get(url)
-            with self.subTest(url=url):
-                self.assertEqual(response.status_code, HTTPStatus.OK)
-                self.assertTemplateUsed(response, template)
+    def test_create_url_redirect_anonymous_to_login(self):
+        """The page / create / will redirect the anonymous user
+        to the login page."""
+        response = self.guest_client.get('/create/', follow=True)
+        self.assertRedirects(
+            response, '/auth/login/?next=/create/')
 
-    def test_post_urls_not_exists_at_desired_location(self):
-        """Проверяем обработку несуществующих урлов в приложении Post"""
-        response = self.guest_client.get('/not_exists/')
-        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+    def test_posts_edit_url_redirect_authorized(self):
+        """The page /posts/<post_id>/edit/ will redirect the authorized user
+        to /posts/<post_id>/."""
+        self.authorized_client = Client()
+        self.authorized_client.force_login(self.__class__.user_alex)
+        response = self.authorized_client.get(f'/posts/{self.post.pk}/edit/')
+        self.assertRedirects(response, f'/posts/{self.post.pk}/')
+
+    def test_comment_only_authorized_user(self):
+        """Only an authorized user can add comments."""
+        response = self.guest_client.get('/create/', follow=True)
+        self.assertEqual(response.status_code, HTTPStatus.OK.value)

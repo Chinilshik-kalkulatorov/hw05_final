@@ -1,72 +1,116 @@
-from django.shortcuts import get_object_or_404
+import shutil
+import tempfile
+
+from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from posts.models import Post
-from posts.tests.fixtures.fixture_data import Settings
+from ..models import Comment, Group, Post, User
+
+TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
 
-class PostFormTests(Settings):
-    def setUp(self) -> None:
-        # URLS для теста создания и редактирования поста
-        self.PAGE_CREATE = reverse('posts:post_create')
-        self.PAGE_CREATE_REDIRECT = reverse(
-            'posts:profile', kwargs={'username': self.user})
-        self.PAGE_EDIT = reverse(
-            'posts:post_edit', kwargs={'post_id': self.post.id}
+@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
+class PostCreateFormTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = User.objects.create_user(username='userman')
+        cls.group = Group.objects.create(
+            pk=1,
+            title='Тестовая группа',
+            slug='something_slug',
+            description='Тестовое описание',
         )
-        self.PAGE_EDIT_REDIRECT = reverse(
-            'posts:post_detail', kwargs={'post_id': self.post.id}
+        cls.post = Post.objects.create(
+            author=cls.user,
+            text='Тестовая группа',
         )
+        cls.comments = Comment.objects.create(
+            author=cls.user,
+            post=cls.post,
+            text='new comment')
 
-    def test_post_create(self):
-        """Валидная форма создает запись в Task."""
-        Post.objects.all().delete()
-        self.assertEqual(Post.objects.count(), 0)
-        form_data = {'text': 'Тестовый пост из формы', 'group': self.group.id}
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
+
+    def setUp(self):
+        self.guest_client = Client()
+        self.authorized_client = Client()
+        self.authorized_client.force_login(self.__class__.user)
+
+    def test_create_post(self):
+        """Check a new record is created in Post."""
+        posts_count = Post.objects.count()
+        small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x02\x00'
+            b'\x01\x00\x80\x00\x00\x00\x00\x00'
+            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+            b'\x0A\x00\x3B'
+        )
+        uploaded = SimpleUploadedFile(
+            name='small.gif',
+            content=small_gif,
+            content_type='image/gif'
+        )
+        form_data = {
+            'author': self.user,
+            'text': 'Новый тестовый текст ',
+            'group': self.group.pk,
+            'image': uploaded
+        }
         response = self.authorized_client.post(
-            self.PAGE_CREATE, data=form_data, follow=True
+            reverse('posts:post_create'),
+            data=form_data,
+            follow=True
         )
-        # Проверяем, что в БД добавилась запись
-        self.assertEqual(Post.objects.count(), 1)
-        # Проверяем, что редирект yes
-        self.assertRedirects(response, self.PAGE_CREATE_REDIRECT)
-        # Проверяем, что в базу добавилась запись с переданным контекстом
-        self.assertTrue(Post.objects.filter(**form_data).exists())
-        # Проверка создания поста под анонимом
-        self.guest_client.post(
-            self.PAGE_EDIT, data=form_data, follow=True
-        )
+        self.assertRedirects(response, reverse('posts:profile',
+                                               kwargs={'username': self.user}))
+        self.assertEqual(Post.objects.count(), posts_count + 1)
 
-    def test_form_fields_labels(self):
-        """Проверка переопределенных  labels и help_texts в форме"""
-        text_label = self.form.fields['text'].label
-        group_label = self.form.fields['group'].label
-        group_help_text = self.form.fields['group'].help_text
-        self.assertEquals(text_label, 'Текст поста')
-        self.assertEquals(group_label, 'Группа')
-        self.assertEquals(
-            group_help_text, 'Группа, к которой будет относиться пост')
-
-    def test_post_edit(self):
-        """Валидная форма со страницы редактирования поста сохраняет
-        изменения"""
-        form_data = {'text': 'Тестовый пост из формы', 'group': self.group.id}
+    def test_edit_post(self):
+        """Сhecking the editing of a record in Post."""
+        posts_count = Post.objects.count()
+        form_data = {
+            'text': 'Редактированный тестовый текст',
+        }
         response = self.authorized_client.post(
-            self.PAGE_EDIT, data=form_data, follow=True
+            reverse('posts:post_edit', kwargs={'post_id': self.post.pk}),
+            data=form_data,
+            follow=True
         )
-        # Проверка редиректа yes
-        self.assertRedirects(response, self.PAGE_EDIT_REDIRECT)
-        # Проверка, что пост с изменяемыми данными есть
-        self.assertTrue(Post.objects.filter(**form_data).exists())
-        # Проверка, что автор измененного поста...
-        post = get_object_or_404(Post, pk=self.post.id)
-        self.assertEquals(post.author, self.user)
-        # Проверка перенаправления ...
-        response2 = self.authorized_client2.get(
-            self.PAGE_EDIT, data=form_data, follow=True
-        )
-        self.assertRedirects(response2, self.PAGE_EDIT_REDIRECT)
-        # Проверка редактирования поста под анонимом
-        self.guest_client.post(
-            self.PAGE_EDIT, data=form_data, follow=True
-        )
+        self.assertRedirects(response,
+                             reverse('posts:post_detail',
+                                     kwargs={'post_id': self.post.pk}))
+        self.assertEqual(Post.objects.count(), posts_count)
+        response = self.authorized_client.get(
+            reverse('posts:post_edit', kwargs={'post_id': self.post.pk}))
+        self.assertEqual(response.context['post'].text,
+                         'Редактированный тестовый текст')
+
+    def test_comment_only_authorized_user_add_comment(self):
+        """Only an authorized user can add comments."""
+        post = Post.objects.get(pk=self.post.pk)
+        comment_count = post.comments.count()
+        url = reverse('posts:add_comment',
+                      kwargs={'post_id': self.post.pk})
+        form_data = {
+            'post': post.pk,
+            'author': self.post.author,
+            'text': 'all be back',
+        }
+        self.guest_client.post(url,
+                               data=form_data,
+                               follow=True)
+        self.assertEqual(post.comments.count(), comment_count)
+        response_auth = self.authorized_client.post(url,
+                                                    data=form_data,
+                                                    follow=True)
+        self.assertEqual(post.comments.count(), comment_count + 1)
+        self.assertTrue(response_auth.context['comments'].get(
+            text='all be back'))
