@@ -182,22 +182,30 @@ class PostsVIEWSTests(TestCase):
         response = self.authorized_client.get(reverse('posts:index'))
         self.assertNotIn(control_text, response.content.decode('utf-8'))
 
-    def test_follow_add_delete(self):
-        """An authorized user can subscribe to other
-        users and remove them from subscriptions."""
-        count_check = Follow.objects.all().count()
-        self.guest_client.get(reverse('posts:profile_follow',
-                                      kwargs={'username': self.tom}))
-        self.assertEqual(Follow.objects.all().count(), count_check)
-        self.authorized_client.get(reverse('posts:profile_follow',
-                                           kwargs={'username': self.tom}))
-        self.assertEqual(Follow.objects.all().count(), count_check + 1)
-        self.guest_client.get(reverse('posts:profile_unfollow',
-                                      kwargs={'username': self.tom}))
-        self.assertEqual(Follow.objects.all().count(), count_check + 1)
-        self.authorized_client.get(reverse('posts:profile_unfollow',
-                                           kwargs={'username': self.tom}))
-        self.assertEqual(Follow.objects.all().count(), count_check)
+    def test_follow_new_post(self):
+        follower = User.objects.create(username='follower')
+        author = User.objects.create(username='author')
+        authorized_client = Client()
+        authorized_client.force_login(follower)
+        post = Post.objects.create(
+            text='Тестовый текст поста follow',
+            author=author,
+        )
+        Follow.objects.create(user=follower, author=author)
+        response = authorized_client.get(reverse('posts:follow_index'))
+        post_test = response.context['page_obj'][0]
+        self.assertEqual(post_test, post)
+
+    def test_unfollow_new_post(self):
+        follower = User.objects.create(username='follower')
+        not_follower = User.objects.create(username='not_follower')
+        author = User.objects.create(username='author')
+        authorized_client = Client()
+        authorized_client.force_login(not_follower)
+        post = Post.objects.create(
+            text='Тестовый текст поста follow',
+            author=author,
+        )
 
     def test_new_entry_show_line(self):
         """Adding a new entry to the feed to the subscribed user."""

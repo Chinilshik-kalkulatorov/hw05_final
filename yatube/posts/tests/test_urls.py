@@ -76,5 +76,5 @@ class PostsURLTests(TestCase):
 
     def test_comment_only_authorized_user(self):
         """Only an authorized user can add comments."""
-        response = self.guest_client.get('/create/', follow=True)
+        response = self.authorized_client.get('/create/', follow=True)
         self.assertEqual(response.status_code, HTTPStatus.OK.value)
